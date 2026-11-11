@@ -20,7 +20,7 @@
     ],
     "injects": {
         "main": "./main/index.js",
-        "renderer": "./webui/renderer.js"
+        "renderer": "./renderer/index.js"
     },
     "repository": {
         "repo": "coolxitech/LiteLoaderQQNT-WebUI",

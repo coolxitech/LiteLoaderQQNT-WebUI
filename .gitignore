@@ -1,0 +1,5 @@
+/.openbitfun/search/flashgrep-index/
+.openbitfun/
+node_modules/
+dist/
+*.log

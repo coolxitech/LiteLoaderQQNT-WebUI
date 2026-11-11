@@ -2,7 +2,7 @@
 
 用浏览器管理 [LiteLoaderQQNT](https://github.com/LiteLoaderQQNT/LiteLoaderQQNT)：查看版本与路径、启停插件、浏览插件市场、检查加载器更新、编辑配置。
 
-插件在 QQ 主进程里起一个**只监听 `127.0.0.1`** 的 HTTP 服务，前端是一个零构建的 Vue 3 单页界面（Vue 浏览器版已随仓库分发在 `webui/vendor/`，不走 npm、不走 SFC、没有打包步骤）。
+插件在 QQ 主进程里起一个**只监听 `127.0.0.1`** 的 HTTP 服务，前端是用 Vite + Vue 3 单文件组件（SFC）构建的单页界面：源码在 `webui-src/`，构建产物提交在 `webui/`，运行时既不需要 `node_modules` 也不需要构建步骤。
 
 ## 安装
 
@@ -66,12 +66,18 @@ token 同时会写到 `<数据目录>/webui/token`，方便脚本读取；页面
 
 ```
 manifest.json          插件清单（injects.main / injects.renderer）
+package.json           devDependencies: vue / vite / @vitejs/plugin-vue
+vite.config.mjs        构建配置（root: webui-src，产物输出到 webui/）
 main/index.js          HTTP 服务 + API（CommonJS，跑在 QQ 主进程）
-webui/renderer.js      QQ 设置页里的 WebUI 地址行（ESM）
-webui/index.html       WebUI 页面外壳
-webui/app.js           Vue 3 单页应用（ESM，模板字符串，无 SFC）
-webui/styles.css       自带浅色主题，不依赖 QQ 的 CSS 变量
-webui/vendor/          Vue 浏览器版（随仓库分发）
+renderer/index.js      QQ 设置页里的 WebUI 地址行（ESM）
+webui-src/index.html   页面外壳，挂载点 #app
+webui-src/main.js      createApp(App).mount("#app")
+webui-src/App.vue      顶部导航（hash 路由）+ 四个视图切换 + 全局错误/提示条
+webui-src/views/       Overview.vue / Plugins.vue / Market.vue / Config.vue
+webui-src/api.js       token 握手（?token= → sessionStorage）与 fetch 封装
+webui-src/store.js     跨视图共享状态与数据操作
+webui-src/styles.css   全局变量、重置与公共组件类（按钮/标签/卡片/表单）
+webui/                 构建产物（index.html + assets/*，随仓库提交，不要手改）
 ```
 
 ## HTTP API
@@ -93,16 +99,24 @@ webui/vendor/          Vue 浏览器版（随仓库分发）
 
 ## 开发
 
-无构建、无依赖、无测试框架。改完直接重启 QQ 即生效。
+前端是 Vite + Vue 3 SFC，产物提交在 `webui/`；主进程与设置页入口仍是纯 CommonJS / ESM，不需要编译。
 
 ```powershell
+# 安装开发依赖（会生成 node_modules，不要提交）
+npm install
+
+# 构建前端产物到 webui/（emptyOutDir 会先清空旧产物）
+npm run build
+
+# 本地起 Vite dev server 调界面（此时没有主进程，接口会 404）
+npm run dev
+
 # 语法检查
 node --check main/index.js
-node --check webui/renderer.js
-node --check webui/app.js
+node --check renderer/index.js
 ```
 
-`webui/app.js` 用的是 Vue 浏览器版（`vue.esm-browser.prod.js`，含模板编译器），因此可以直接写 `template` 字符串。升级 Vue 时替换 `webui/vendor/vue.esm-browser.prod.js` 即可，不需要任何构建步骤。
+改界面只改 `webui-src/`，改完必须重新 `npm run build` 并把 `webui/` 产物一起提交，否则 QQ 里加载的还是旧界面。`main/index.js` 的静态根固定为 `webui/`，构建产物换了文件名也不用改它。
 
 ## 许可证
 
