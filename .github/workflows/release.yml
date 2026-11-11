@@ -1,0 +1,165 @@
+name: 发布 Release
+
+# 触发方式：
+#   1. 推送 tag（v1.0.0 / v1.1.0-beta.1 …）
+#   2. 手动补发（workflow_dispatch），在输入框填写要补发的 tag，例如 v1.0.0
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要补发的 tag（例如 v1.0.0）；留空则使用当前 ref"
+        required: false
+        type: string
+
+# 创建/更新 Release 需要写权限；令牌统一使用内置 GITHUB_TOKEN，不硬编码任何密钥
+permissions:
+  contents: write
+
+# 同一个 tag/ref 的发布串行执行，且不互相取消（避免打包到一半的 Release 被打断）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: 构建并发布插件包
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码（含完整历史）
+        uses: actions/checkout@v7
+        with:
+          # 手动触发时优先检出用户指定的 tag，否则检出触发本次运行的 ref（tag push 即该 tag）
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          # 完整历史：生成 Release Notes 需要提交记录
+          fetch-depth: 0
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v7
+        with:
+          # 用 Node 24（当前 LTS）：package.json 声明的是 >=18，但实际依赖 vite 8.3.7，
+          # 其 engines 为 "^20.19.0 || >=22.12.0"，所以 18/20 会装不上或跑不起来；
+          # 22.12+ 也可以，选 24 是为了跟 LTS 线保持一致。
+          node-version: 24
+          # setup-node 自带 npm 依赖缓存（依据 package-lock.json），无需再叠加 actions/cache
+          cache: npm
+
+      - name: 安装依赖
+        # 用 npm ci 严格按 package-lock.json 还原，保证可复现
+        run: npm ci
+
+      - name: 校验版本一致性（tag 与 manifest.json）
+        # 用 node 读文件，避免 shell 引号/JSON 解析在跨平台上的差异
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          cat > "$RUNNER_TEMP/check-version.cjs" <<'NODE'
+          const fs = require('node:fs');
+
+          const inputTag = (process.env.INPUT_TAG || '').trim();
+          const rawRef = (process.env.GITHUB_REF_NAME || '').trim();
+          const rawTag = inputTag || rawRef;
+
+          if (!rawTag) {
+              console.error('无法确定 tag：既没有 workflow_dispatch 输入，也没有 GITHUB_REF_NAME');
+              process.exit(1);
+          }
+
+          // tag 去掉前导 v 后应与 manifest.json 的 version 完全一致
+          const tagVersion = rawTag.replace(/^v/, '');
+          const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+          const manifestVersion = String(manifest.version || '');
+
+          console.log(`tag          : ${rawTag}`);
+          console.log(`tag 版本      : ${tagVersion}`);
+          console.log(`manifest 版本 : ${manifestVersion}`);
+
+          if (tagVersion !== manifestVersion) {
+              console.error('版本不一致：tag 与 manifest.json 的 version 不同，已终止发布。');
+              console.error(`  tag   -> ${tagVersion}`);
+              console.error(`  manifest.json -> ${manifestVersion}`);
+              console.error('请先把 manifest.json（必要时连同 package.json）的版本改好再打 tag。');
+              if (!inputTag && !rawRef.startsWith('v')) {
+                  console.error('提示：手动触发时请在 tag 输入框里填写要补发的 tag（例如 v1.0.0）。');
+              }
+              process.exit(1);
+          }
+
+          // 供后续步骤（制品名、Release 的 prerelease 判断）复用
+          fs.appendFileSync(
+              process.env.GITHUB_ENV,
+              `VERSION=${manifestVersion}\nPKG_TAG=${rawTag.startsWith('v') ? rawTag : `v${rawTag}`}\n`
+          );
+          NODE
+          node "$RUNNER_TEMP/check-version.cjs"
+
+      - name: 构建产物
+        # npm run build = vue-tsc 类型检查 + tsc(main) + tsc(renderer) + vite build
+        # 类型检查已在 build 脚本内部执行，失败即中断
+        run: npm run build
+
+      - name: 打包 webui.zip
+        # zip 内保持「插件根目录文件平铺」：manifest.json / main/ / renderer/ / webui/ 都在根层，
+        # 不套外层目录，LiteLoaderQQNT 插件商店与手动安装都按这个结构解压。
+        # 只显式列出要打包的路径，因此 node_modules、*-src、.openbitfun、tsconfig*、
+        # vite.config.mts、package*.json 天然不会进包；-x 再兜一层 *.ts 等源码残留。
+        run: |
+          set -euo pipefail
+          rm -f webui.zip
+
+          for p in manifest.json LICENSE README.md main renderer webui; do
+              if [ ! -e "$p" ]; then
+                  echo "::error::缺少打包所需路径：$p（检查构建是否成功）"
+                  exit 1
+              fi
+          done
+
+          zip -r -q -9 webui.zip manifest.json LICENSE README.md main renderer webui \
+              -x '*.ts' '*.tsx' '*.map' '*.tsbuildinfo'
+
+      - name: 自检 zip 结构
+        # 断言根层有 manifest.json，且三个入口产物齐全；再断言没有源码/依赖混入
+        run: |
+          set -euo pipefail
+          unzip -Z1 webui.zip > "$RUNNER_TEMP/zip-list.txt"
+
+          echo "=== webui.zip 内容（共 $(wc -l < "$RUNNER_TEMP/zip-list.txt") 项） ==="
+          cat "$RUNNER_TEMP/zip-list.txt"
+
+          for f in manifest.json main/index.js renderer/index.js webui/index.html; do
+              if ! grep -qxF "$f" "$RUNNER_TEMP/zip-list.txt"; then
+                  echo "::error::webui.zip 缺少必需文件：$f"
+                  exit 1
+              fi
+          done
+
+          if grep -Eq '(^|/)(node_modules|main-src|renderer-src|webui-src|\.openbitfun)/|\.tsx?$|^tsconfig.*\.json$|^vite\.config\.mts$|^package(-lock)?\.json$' "$RUNNER_TEMP/zip-list.txt"; then
+              echo "::error::webui.zip 混入了不该发布的文件（见上方命中的行）"
+              exit 1
+          fi
+
+          echo "zip 结构自检通过"
+
+      - name: 上传构建制品
+        uses: actions/upload-artifact@v7
+        with:
+          name: webui-${{ env.VERSION }}
+          path: webui.zip
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: 创建或更新 Release
+        uses: softprops/action-gh-release@v3
+        with:
+          # 手动触发时显式指定 tag，避免 Release 落到分支上
+          tag_name: ${{ env.PKG_TAG }}
+          files: webui.zip
+          generate_release_notes: true
+          draft: false
+          # tag 里带 "-"（如 v1.1.0-beta.1）自动标记为预发布
+          prerelease: ${{ contains(env.PKG_TAG, '-') }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

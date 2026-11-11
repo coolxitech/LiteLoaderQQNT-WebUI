@@ -1,0 +1,171 @@
+/* 全局基础样式：重置、画布氛围、排版默认值、滚动条、焦点环与少量工具类。
+   只放「全站通用」的东西，组件样式一律写在各自组件的 scoped CSS 里。
+   兼容红线：构建目标是 chrome100，禁止 color-mix() / oklch() / :has() / @property / CSS 嵌套。 */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    min-height: 100vh;
+    /* 始终预留滚动条位置，避免切换视图时整页左右跳动 */
+    overflow-y: scroll;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+body { position:relative; }
+#app { position:relative; z-index:1; min-height:100vh; }
+body::before { content:""; position:fixed; z-index:0; inset:0; pointer-events:none; background:radial-gradient(ellipse 720px 420px at 82% -5%,rgba(94,132,211,.10),transparent 72%),radial-gradient(ellipse 520px 360px at 8% 38%,rgba(79,175,196,.07),transparent 74%); }
+[data-theme="dark"] body::before { background:radial-gradient(ellipse 720px 420px at 82% -5%,rgba(83,117,184,.18),transparent 72%),radial-gradient(ellipse 520px 360px at 8% 38%,rgba(54,135,151,.12),transparent 74%); }
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    margin: 0;
+    font-weight: 600;
+    line-height: var(--leading-tight);
+    letter-spacing: -.01em;
+}
+
+p {
+    margin: 0;
+}
+
+a {
+    color: var(--accent-text);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+code,
+kbd,
+samp,
+pre {
+    font-family: var(--font-mono);
+    font-size: .92em;
+}
+
+::selection {
+    background: var(--accent-soft);
+    color: var(--fg);
+}
+
+/* 滚动条：Firefox 走标准属性，Chromium 走伪元素 */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border: 2px solid transparent;
+    border-radius: var(--r-full);
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--fg-subtle);
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+
+/* ---- 工具类（数量刻意保持很少） ---- */
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+.skip-link {
+    position: fixed;
+    top: var(--sp-4);
+    left: var(--sp-4);
+    z-index: var(--z-toast);
+    padding: var(--sp-4) var(--sp-8);
+    border-radius: var(--r-sm);
+    background: var(--surface-3);
+    color: var(--fg);
+    box-shadow: var(--elev-2);
+    transform: translateY(-200%);
+    transition: transform var(--dur-2) var(--ease-out);
+}
+
+.skip-link:focus-visible {
+    transform: translateY(0);
+    text-decoration: none;
+}
+
+.mono {
+    font-family: var(--font-mono);
+}
+
+.tabular {
+    font-variant-numeric: tabular-nums;
+}
+
+.muted {
+    color: var(--fg-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Editor surface integrates visually without modifying Config.vue or its behavior. */
+.app-main .editor-card { box-shadow:var(--elev-2); border-radius:10px; }
+.app-main .editor-bar { background:linear-gradient(100deg,var(--surface-2),var(--hero-middle)); padding-top:14px; padding-bottom:14px; }
+.app-main .editor-file { color:var(--fg); font-weight:500; }
+.app-main .editor-file::before { content:"{ }"; display:inline-block; margin-right:10px; color:var(--accent-text); }
+.app-main .editor-foot { background:var(--surface-2); }

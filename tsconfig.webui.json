@@ -8,7 +8,12 @@
         "types": ["vite/client"],
         "jsx": "preserve",
         "noEmit": true,
-        "resolveJsonModule": true
+        "resolveJsonModule": true,
+        // 与 vite.config.mts 的 resolve.alias 保持一致，让 "@/" 指向 webui-src
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["webui-src/*"]
+        }
     },
     "include": ["webui-src/**/*.ts", "webui-src/**/*.vue"]
 }

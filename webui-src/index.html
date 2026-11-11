@@ -4,7 +4,24 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="referrer" content="no-referrer">
+    <meta name="color-scheme" content="light dark">
     <title>LiteLoaderQQNT WebUI</title>
+    <!-- 首屏同步手动主题设置，与 store.ts 默认浅色规则一致 -->
+    <script>
+        (function () {
+            var theme = "light";
+            try {
+                var stored = window.localStorage.getItem("webui-theme");
+                if (stored === "light" || stored === "dark") {
+                    theme = stored;
+                }
+            }
+            catch {
+                theme = "light";
+            }
+            document.documentElement.dataset.theme = theme;
+        })();
+    </script>
 </head>
 <body>
     <div id="app"></div>

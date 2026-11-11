@@ -1,10 +1,46 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { computed, onMounted, watch } from "vue";
+import { ShieldAlert } from "lucide-vue-next";
 import Overview from "./views/Overview.vue";
 import Plugins from "./views/Plugins.vue";
 import Market from "./views/Market.vue";
 import Config from "./views/Config.vue";
-import { has_token, view, error, notice, nav_items, resolveRoute, syncView } from "./store";
+import Toaster from "@/components/ui/Toaster.vue";
+import { useToast } from "@/components/ui/useToast";
+import AppSidebar from "@/components/shell/AppSidebar.vue";
+import AppTopbar from "@/components/shell/AppTopbar.vue";
+import MobileNav from "@/components/shell/MobileNav.vue";
+// nav_items 由 AppSidebar / MobileNav 自己消费，外壳这里只需要视图元信息
+import { DEFAULT_ROUTE, error, has_token, notice, page_meta, resolveRoute, syncView, view } from "./store";
+
+// 当前视图的标题与说明：未知路由回退到默认页，保证顶栏永远有文案
+const meta = computed(() => page_meta[view.value] ?? page_meta[DEFAULT_ROUTE]);
+
+// 示例地址跟随真实主机与端口，避免写死 3210 误导（端口可在 data/webui/config.json 改）
+const local_url = "http://" + window.location.host + "/?token=...";
+
+// store 里的全局提示统一转成 toast，视图侧无需关心提示条
+const { pushToast } = useToast();
+
+watch(error, (value) => {
+    if (value === "") return;
+    // 错误文案通常较长（JSON 解析位置、连接失败原因），给 0 表示常驻，由用户手动关闭
+    pushToast({ tone: "danger", title: value, timeout: 0 });
+    error.value = "";
+});
+
+watch(notice, (value) => {
+    if (value === "") return;
+    pushToast({ tone: "ok", title: value });
+    notice.value = "";
+});
+
+// 跳过链接：href 保留 #app-main 作为无 JS 时的兜底，点击时改为直接聚焦主内容区，
+// 否则 location.hash 会被改写成 #app-main，触发 hashchange 后路由回落成概览页
+function focus_main(): void {
+    const main = document.getElementById("app-main");
+    if (main) main.focus();
+}
 
 onMounted(() => {
     if (!has_token) return;
@@ -17,185 +53,51 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="webui-app">
-        <div v-if="!has_token" class="webui-gate">
-            <h1 class="webui-gate-title">缺少 token</h1>
-            <p class="webui-gate-text">请用控制台输出的带 token 地址打开，例如 http://127.0.0.1:3210/?token=...<br>也可以在 LiteLoader 设置的 WebUI 一栏点「打开」。</p>
-        </div>
-        <template v-else>
-            <header class="webui-header">
-                <div class="webui-brand">LiteLoaderQQNT WebUI</div>
-                <nav class="webui-nav">
-                    <a v-for="item in nav_items" :key="item.hash" :href="item.hash" :class="['webui-nav-item', { 'is-active': view === item.hash }]">{{ item.label }}</a>
-                </nav>
-            </header>
-            <div v-if="error" class="webui-error">
-                <span class="webui-error-text">{{ error }}</span>
-                <button class="webui-btn webui-btn-ghost webui-btn-sm" type="button" @click="error = ''">关闭</button>
-            </div>
-            <div v-else-if="notice" class="webui-notice">
-                <span class="webui-notice-text">{{ notice }}</span>
-                <button class="webui-btn webui-btn-ghost webui-btn-sm" type="button" @click="notice = ''">关闭</button>
-            </div>
-            <main class="webui-main">
-                <Overview v-if="view === '#/overview'" />
-                <Plugins v-else-if="view === '#/plugins'" />
-                <Market v-else-if="view === '#/market'" />
-                <Config v-else-if="view === '#/config'" />
+    <!-- 缺少 token：全屏 gate，不渲染任何导航外壳 -->
+    <div v-if="!has_token" class="app-gate">
+        <section class="app-gate__card">
+            <span class="app-gate__icon">
+                <ShieldAlert :size="24" aria-hidden="true" />
+            </span>
+            <h1 class="app-gate__title">缺少访问令牌</h1>
+            <p class="app-gate__text">
+                请用控制台输出的带 token 地址打开，或在 LiteLoader 设置的 WebUI 一栏点「打开」。
+            </p>
+            <code class="app-gate__sample">{{ local_url }}</code>
+        </section>
+    </div>
+
+    <div v-else class="app-shell">
+        <a class="skip-link" href="#app-main" @click.prevent="focus_main">跳到主要内容</a>
+        <AppSidebar />
+        <div class="app-body">
+            <AppTopbar :title="meta.title" :desc="meta.desc" />
+            <MobileNav />
+            <main id="app-main" class="app-main" tabindex="-1">
+                <div class="app-main__inner">
+                    <div>
+                        <Overview v-if="view === '#/overview'" key="overview" />
+                        <Plugins v-else-if="view === '#/plugins'" key="plugins" />
+                        <Market v-else-if="view === '#/market'" key="market" />
+                        <Config v-else-if="view === '#/config'" key="config" />
+                    </div>
+                </div>
             </main>
-        </template>
+        </div>
+        <Toaster />
     </div>
 </template>
 
 <style scoped>
-/* 外壳布局：应用容器、顶部导航、主区域与提示条 */
-.webui-app {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-}
-
-.webui-header {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px 24px;
-    padding: 12px 24px;
-    background: var(--webui-surface);
-    border-bottom: 1px solid var(--webui-border);
-}
-
-.webui-brand {
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: .2px;
-}
-
-.webui-nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.webui-nav-item {
-    padding: 5px 12px;
-    border-radius: 999px;
-    color: var(--webui-text-soft);
-    text-decoration: none;
-    font-size: 13.5px;
-    transition: background-color .15s ease, color .15s ease;
-}
-
-.webui-nav-item:hover {
-    background: var(--webui-surface-alt);
-    color: var(--webui-text);
-}
-
-.webui-nav-item.is-active {
-    background: var(--webui-brand-soft);
-    color: var(--webui-brand);
-    font-weight: 600;
-}
-
-.webui-main {
-    flex: 1;
-    width: 100%;
-    max-width: 1180px;
-    margin: 0 auto;
-    padding: 20px 24px 56px;
-}
-
-/* 提示条 */
-.webui-error {
-    position: sticky;
-    top: 57px;
-    z-index: 9;
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    margin: 12px 24px 0;
-    padding: 10px 14px;
-    border: 1px solid transparent;
-    border-radius: var(--webui-radius-sm);
-    background: var(--webui-danger-soft);
-    color: var(--webui-danger);
-    font-size: 13px;
-}
-
-.webui-error-text {
-    flex: 1;
-    word-break: break-word;
-}
-
-.webui-notice {
-    position: sticky;
-    top: 57px;
-    z-index: 9;
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    margin: 12px 24px 0;
-    padding: 10px 14px;
-    border: 1px solid transparent;
-    border-radius: var(--webui-radius-sm);
-    background: var(--webui-ok-soft);
-    color: var(--webui-ok);
-    font-size: 13px;
-}
-
-.webui-notice-text {
-    flex: 1;
-    word-break: break-word;
-}
-
-.webui-notice .webui-btn-ghost {
-    color: var(--webui-ok);
-    border-color: transparent;
-}
-
-/* token 缺失页 */
-.webui-gate {
-    max-width: 560px;
-    margin: 80px auto;
-    padding: 24px;
-    background: var(--webui-surface);
-    border: 1px solid var(--webui-border);
-    border-radius: var(--webui-radius);
-    box-shadow: var(--webui-shadow);
-    text-align: center;
-}
-
-.webui-gate-title {
-    margin: 0 0 8px;
-    font-size: 17px;
-    font-weight: 600;
-}
-
-.webui-gate-text {
-    margin: 0;
-    color: var(--webui-text-soft);
-    font-size: 13.5px;
-    word-break: break-word;
-}
-
-@media (max-width: 720px) {
-    .webui-header {
-        padding: 10px 16px;
-    }
-
-    .webui-main {
-        padding: 16px 16px 40px;
-    }
-
-    .webui-error {
-        margin: 10px 16px 0;
-    }
-
-    .webui-notice {
-        margin: 10px 16px 0;
-    }
-}
+.app-shell { display:grid; grid-template-columns:208px minmax(0,1fr); min-height:100vh; }
+.app-body { min-width:0; }
+.app-main { width:100%; max-width:1164px; margin:0 auto; padding:0 32px 48px; }
+.app-main:focus:not(:focus-visible) { outline:none; }
+.app-gate { min-height:100vh; display:grid; place-items:center; padding:24px; }
+.app-gate__card { width:min(520px,100%); padding:32px; border:1px solid var(--line); border-radius:8px; background:var(--surface-1); }
+.app-gate__icon { color:var(--fg-muted); }
+.app-gate__title { font-size:24px; margin:12px 0; }
+.app-gate__text { color:var(--fg-muted); }
+.app-gate__sample { display:block; margin-top:16px; overflow-wrap:anywhere; }
+@media(max-width:900px) { .app-shell { display:block; } .app-shell :deep(.app-sidebar) { display:none; } .app-main { padding:20px 16px 32px; } }
 </style>

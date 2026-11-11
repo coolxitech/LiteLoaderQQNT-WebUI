@@ -1,3 +1,4 @@
+import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 
@@ -8,6 +9,12 @@ export default defineConfig({
     // 产物用相对路径引用 assets，服务挂在 / 下也能正常加载
     base: "./",
     plugins: [vue()],
+    resolve: {
+        alias: {
+            // "@" 指向 webui-src，组件内部统一用 "@/lib/utils" 这类绝对导入
+            "@": fileURLToPath(new URL("./webui-src", import.meta.url))
+        }
+    },
     build: {
         outDir: "../webui",
         emptyOutDir: true,
