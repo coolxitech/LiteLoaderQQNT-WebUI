@@ -1,0 +1,20 @@
+{
+    "name": "liteloader-qqnt-webui",
+    "version": "1.0.0",
+    "private": true,
+    "description": "LiteLoaderQQNT 的浏览器管理界面插件：本机 HTTP 服务 + Vue 3 单页界面。",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/coolxitech/LiteLoaderQQNT-WebUI.git"
+    },
+    "keywords": [
+        "liteloader",
+        "qqnt",
+        "webui"
+    ],
+    "author": "coolxitech",
+    "engines": {
+        "node": ">=18"
+    }
+}

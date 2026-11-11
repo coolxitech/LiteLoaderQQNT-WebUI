@@ -1,0 +1,29 @@
+{
+    "manifest_version": 4,
+    "type": "extension",
+    "name": "WebUI",
+    "slug": "webui",
+    "version": "1.0.0",
+    "description": "在浏览器里管理 LiteLoaderQQNT：查看版本与路径、启停插件、浏览插件市场、检查更新、编辑配置。仅监听 127.0.0.1 且需要 token。",
+    "icon": null,
+    "thumb": null,
+    "authors": [
+        {
+            "name": "coolxitech",
+            "link": "https://github.com/coolxitech"
+        }
+    ],
+    "platform": [
+        "win32",
+        "linux",
+        "darwin"
+    ],
+    "injects": {
+        "main": "./main/index.js",
+        "renderer": "./webui/renderer.js"
+    },
+    "repository": {
+        "repo": "coolxitech/LiteLoaderQQNT-WebUI",
+        "branch": "main"
+    }
+}
