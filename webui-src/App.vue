@@ -1,10 +1,10 @@
-<script setup>
+<script setup lang="ts">
 import { onMounted } from "vue";
 import Overview from "./views/Overview.vue";
 import Plugins from "./views/Plugins.vue";
 import Market from "./views/Market.vue";
 import Config from "./views/Config.vue";
-import { has_token, view, error, notice, nav_items, resolveRoute, syncView } from "./store.js";
+import { has_token, view, error, notice, nav_items, resolveRoute, syncView } from "./store";
 
 onMounted(() => {
     if (!has_token) return;

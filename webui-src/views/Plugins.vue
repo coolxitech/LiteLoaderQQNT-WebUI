@@ -1,5 +1,5 @@
-<script setup>
-import { plugins, busy, plugin_keyword, delete_target, delete_self, delete_data, filtered_plugins, loadPlugins, togglePlugin, openDelete, closeDelete, confirmDelete } from "../store.js";
+<script setup lang="ts">
+import { plugins, busy, plugin_keyword, delete_target, delete_self, delete_data, filtered_plugins, loadPlugins, togglePlugin, openDelete, closeDelete, confirmDelete } from "../store";
 </script>
 
 <template>

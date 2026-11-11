@@ -1,42 +1,65 @@
-// 全局共享状态与数据操作：四个视图都从这里读写，逻辑与原 webui/app.js 的 setup() 保持一致
+// 全局共享状态与数据操作：四个视图都从这里读写
 import { computed, ref } from "vue";
-import { has_token, request } from "./api.js";
+import { errorText, has_token, request } from "./api";
+import type {
+    LiteLoaderConfig,
+    MarketAuthor,
+    MarketEntry,
+    MarketInstallResult,
+    MarketItem,
+    MarketPayload,
+    MarketUninstallResult,
+    OpenResult,
+    PluginDeleteResult,
+    PluginInfo,
+    PluginToggleResult,
+    Status,
+    StatusPaths,
+    UpdateResult,
+    Versions
+} from "./types";
 
 export { has_token };
 
 export const DEFAULT_ROUTE = "#/overview";
 export const ROUTES = ["#/overview", "#/plugins", "#/market", "#/config"];
-export const nav_items = [
+
+export interface NavItem {
+    hash: string;
+    label: string;
+}
+
+export const nav_items: NavItem[] = [
     { hash: "#/overview", label: "概览" },
     { hash: "#/plugins", label: "插件" },
     { hash: "#/market", label: "市场" },
     { hash: "#/config", label: "配置" }
 ];
 
-export const view = ref(resolveRoute());
-export const error = ref("");
-export const notice = ref("");
-export const busy = ref("");
-export const status = ref(null);
-export const plugins = ref([]);
-export const market = ref([]);
-export const market_loading = ref(false);
-export const market_keyword = ref("");
-export const market_type = ref("");
-export const plugin_keyword = ref("");
-export const config_text = ref("");
-export const config_loading = ref(false);
-export const update_result = ref("");
-export const delete_target = ref(null);
-export const delete_self = ref(true);
-export const delete_data = ref(false);
+export const view = ref<string>(resolveRoute());
+export const error = ref<string>("");
+export const notice = ref<string>("");
+export const busy = ref<string>("");
+export const status = ref<Status | null>(null);
+export const plugins = ref<PluginInfo[]>([]);
+export const market = ref<MarketEntry[]>([]);
+export const market_loading = ref<boolean>(false);
+export const market_keyword = ref<string>("");
+export const market_type = ref<string>("");
+export const plugin_keyword = ref<string>("");
+export const config_text = ref<string>("");
+export const config_loading = ref<boolean>(false);
+export const update_result = ref<string>("");
+export const delete_target = ref<PluginInfo | null>(null);
+export const delete_self = ref<boolean>(true);
+export const delete_data = ref<boolean>(false);
 
-function resolveRoute() {
+function resolveRoute(): string {
     const hash = window.location.hash;
     return ROUTES.includes(hash) ? hash : DEFAULT_ROUTE;
 }
 
-function parseVersion(value) {
+function parseVersion(value: unknown): number[] {
     return String(value ?? "")
         .replace(/^v/i, "")
         .split(/[.+-]/)
@@ -46,7 +69,7 @@ function parseVersion(value) {
         });
 }
 
-function isNewerVersion(candidate, current) {
+function isNewerVersion(candidate: unknown, current: unknown): boolean {
     const left = parseVersion(candidate);
     const right = parseVersion(current);
     const length = Math.max(left.length, right.length);
@@ -60,12 +83,12 @@ function isNewerVersion(candidate, current) {
 }
 
 // 市场条目原始结构来自主进程：{ repo, branch, manifest, error }
-function normalizeMarketEntry(item, installed_map) {
+function normalizeMarketEntry(item: MarketItem | null | undefined, installed_map: Map<string, string>): MarketEntry {
     const manifest = item?.manifest ?? null;
     const repo = typeof item?.repo === "string" ? item.repo : "";
     const slug = typeof manifest?.slug === "string" && manifest.slug !== "" ? manifest.slug : repo;
     const version = typeof manifest?.version === "string" ? manifest.version : "";
-    const authors = Array.isArray(manifest?.authors) ? manifest.authors : [];
+    const authors: MarketAuthor[] = Array.isArray(manifest?.authors) ? manifest.authors : [];
     const installed = installed_map.has(slug);
     const installed_version = installed_map.get(slug) ?? "";
     return {
@@ -86,24 +109,24 @@ function normalizeMarketEntry(item, installed_map) {
     };
 }
 
-export function marketDownloadUrl(entry) {
+export function marketDownloadUrl(entry: Pick<MarketEntry, "repo" | "branch">): string {
     return "https://github.com/" + entry.repo + "/archive/refs/heads/" + entry.branch + ".zip";
 }
 
 // 统一错误处理：捕获后写进全局错误条，并返回兜底值
-export async function run(task, fallback) {
+export async function run<T>(task: () => T | Promise<T>, fallback?: T): Promise<T | undefined> {
     try {
         const result = await task();
         return result === undefined ? fallback : result;
     }
     catch (caught) {
-        error.value = caught?.message ?? String(caught);
+        error.value = errorText(caught);
         return fallback;
     }
 }
 
 export const version_cards = computed(() => {
-    const versions = status.value?.versions ?? {};
+    const versions: Versions = status.value?.versions ?? {};
     return [
         { label: "LiteLoader", value: versions.liteloader ?? "-" },
         { label: "QQNT", value: versions.qqnt ?? "-" },
@@ -113,7 +136,7 @@ export const version_cards = computed(() => {
 });
 
 export const path_rows = computed(() => {
-    const paths = status.value?.path ?? {};
+    const paths: Partial<StatusPaths> = status.value?.path ?? {};
     return [
         { label: "本体", value: paths.root ?? "-" },
         { label: "配置目录", value: paths.profile ?? "-" },
@@ -147,26 +170,26 @@ export const filtered_market = computed(() => {
     });
 });
 
-export async function loadStatus() {
+export async function loadStatus(): Promise<void> {
     busy.value = "status";
-    await run(async () => { status.value = await request("/api/status"); });
+    await run(async () => { status.value = await request<Status>("/api/status"); });
     busy.value = "";
 }
 
-export async function loadPlugins() {
+export async function loadPlugins(): Promise<void> {
     busy.value = "plugins";
     await run(async () => {
-        const list = await request("/api/plugins");
+        const list = await request<PluginInfo[]>("/api/plugins");
         plugins.value = Array.isArray(list) ? list : [];
     });
     busy.value = "";
 }
 
-export async function checkUpdate() {
+export async function checkUpdate(): Promise<void> {
     busy.value = "update";
     update_result.value = "";
     await run(async () => {
-        const result = await request("/api/update?refresh=1");
+        const result = await request<UpdateResult>("/api/update?refresh=1");
         const latest = typeof result?.version === "string" ? result.version : "";
         const current = status.value?.versions?.liteloader ?? "";
         if (latest !== "" && isNewerVersion(latest, current)) {
@@ -179,32 +202,32 @@ export async function checkUpdate() {
     busy.value = "";
 }
 
-export async function togglePlugin(plugin) {
+export async function togglePlugin(plugin: PluginInfo): Promise<void> {
     const next_enabled = !plugin.enabled;
     busy.value = "plugin:" + plugin.slug;
     await run(async () => {
-        await request("/api/plugins/" + encodeURIComponent(plugin.slug) + "/enable", {
+        await request<PluginToggleResult>("/api/plugins/" + encodeURIComponent(plugin.slug) + "/enable", {
             method: "POST",
             body: { enabled: next_enabled }
         });
         notice.value = plugin.name + " 已" + (next_enabled ? "启用" : "禁用") + "，重启 QQ 后完全生效";
-        const list = await request("/api/plugins");
+        const list = await request<PluginInfo[]>("/api/plugins");
         plugins.value = Array.isArray(list) ? list : [];
     });
     busy.value = "";
 }
 
-export function openDelete(plugin) {
+export function openDelete(plugin: PluginInfo): void {
     delete_target.value = plugin;
     delete_self.value = true;
     delete_data.value = false;
 }
 
-export function closeDelete() {
+export function closeDelete(): void {
     delete_target.value = null;
 }
 
-export async function confirmDelete() {
+export async function confirmDelete(): Promise<void> {
     const target = delete_target.value;
     if (!target) return;
     if (!delete_self.value && !delete_data.value) {
@@ -213,38 +236,41 @@ export async function confirmDelete() {
     }
     busy.value = "delete:" + target.slug;
     await run(async () => {
-        await request("/api/plugins/" + encodeURIComponent(target.slug) + "/delete", {
+        await request<PluginDeleteResult>("/api/plugins/" + encodeURIComponent(target.slug) + "/delete", {
             method: "POST",
             body: { self: delete_self.value, data: delete_data.value }
         });
         delete_target.value = null;
         notice.value = target.name + " 已标记删除，重启 QQ 后生效";
-        const list = await request("/api/plugins");
+        const list = await request<PluginInfo[]>("/api/plugins");
         plugins.value = Array.isArray(list) ? list : [];
     });
     busy.value = "";
 }
 
-export async function loadMarket(refresh) {
+export async function loadMarket(refresh: boolean): Promise<void> {
     market_loading.value = true;
     await run(async () => {
         const results = await Promise.all([
-            request("/api/market" + (refresh ? "?refresh=1" : "")),
-            request("/api/plugins")
+            request<MarketPayload>("/api/market" + (refresh ? "?refresh=1" : "")),
+            request<PluginInfo[]>("/api/plugins")
         ]);
+        const market_payload = results[0];
         const installed_list = Array.isArray(results[1]) ? results[1] : [];
-        const installed_map = new Map(installed_list.map((item) => [item.slug, item.version ?? ""]));
-        const raw_list = Array.isArray(results[0]?.data) ? results[0].data : [];
+        const installed_map = new Map<string, string>(
+            installed_list.map((item): [string, string] => [item.slug, item.version ?? ""])
+        );
+        const raw_list: MarketItem[] = market_payload && Array.isArray(market_payload.data) ? market_payload.data : [];
         market.value = raw_list.map((item) => normalizeMarketEntry(item, installed_map));
     });
     market_loading.value = false;
 }
 
-export async function installMarket(entry) {
+export async function installMarket(entry: MarketEntry): Promise<void> {
     if (entry.busy) return;
     entry.busy = true;
     await run(async () => {
-        await request("/api/market/install", {
+        await request<MarketInstallResult>("/api/market/install", {
             method: "POST",
             body: { slug: entry.slug, url: marketDownloadUrl(entry) }
         });
@@ -256,12 +282,12 @@ export async function installMarket(entry) {
     entry.busy = false;
 }
 
-export async function uninstallMarket(entry) {
+export async function uninstallMarket(entry: MarketEntry): Promise<void> {
     if (entry.busy) return;
     if (!window.confirm("确定卸载 " + entry.name + "？插件目录会被直接删除。")) return;
     entry.busy = true;
     await run(async () => {
-        await request("/api/market/uninstall", {
+        await request<MarketUninstallResult>("/api/market/uninstall", {
             method: "POST",
             body: { slug: entry.slug, removeData: false }
         });
@@ -273,31 +299,31 @@ export async function uninstallMarket(entry) {
     entry.busy = false;
 }
 
-export async function openDetail(entry) {
+export async function openDetail(entry: MarketEntry): Promise<void> {
     if (!entry.repo) {
         error.value = "该条目没有仓库信息";
         return;
     }
-    await run(() => request("/api/open", {
+    await run(() => request<OpenResult>("/api/open", {
         method: "POST",
         body: { kind: "url", value: "https://github.com/" + entry.repo }
     }));
 }
 
-export async function loadConfig() {
+export async function loadConfig(): Promise<void> {
     config_loading.value = true;
     await run(async () => {
-        const config = await request("/api/config");
+        const config = await request<LiteLoaderConfig>("/api/config");
         config_text.value = JSON.stringify(config, null, 4);
     });
     config_loading.value = false;
 }
 
-export async function saveConfig() {
-    let parsed;
+export async function saveConfig(): Promise<void> {
+    let parsed: unknown;
     try { parsed = JSON.parse(config_text.value); }
     catch (caught) {
-        error.value = "JSON 解析失败：" + (caught?.message ?? caught);
+        error.value = "JSON 解析失败：" + errorText(caught);
         return;
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -306,7 +332,7 @@ export async function saveConfig() {
     }
     busy.value = "config";
     await run(async () => {
-        const saved = await request("/api/config", { method: "PUT", body: parsed });
+        const saved = await request<LiteLoaderConfig>("/api/config", { method: "PUT", body: parsed });
         config_text.value = JSON.stringify(saved, null, 4);
         notice.value = "配置已保存，插件启用状态等改动需重启 QQ 生效";
     });
@@ -314,7 +340,7 @@ export async function saveConfig() {
 }
 
 // 切换 hash 后按当前视图拉取对应数据
-export function syncView() {
+export function syncView(): Promise<void> | undefined {
     if (view.value === "#/overview") return loadStatus();
     if (view.value === "#/plugins") return loadPlugins();
     if (view.value === "#/market") return loadMarket(false);

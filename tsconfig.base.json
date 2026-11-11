@@ -1,0 +1,15 @@
+{
+    // 三套 tsconfig 共享的严格选项：webui（vue-tsc）、main（CommonJS）、renderer（ESM）
+    "compilerOptions": {
+        "strict": true,
+        "target": "ES2022",
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "isolatedModules": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "noImplicitOverride": true
+    }
+}

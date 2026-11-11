@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 
 // 源码在 webui-src/，构建产物落到 webui/（由 main/index.js 作为静态根直接服务）
-// 用 .mjs 后缀：package.json 没有 "type": "module"，主进程代码仍是 CommonJS
+// package.json 没有 "type": "module"，Vite 会自己转译配置文件，所以这里用 .ts 而不是 .mjs
 export default defineConfig({
     root: "webui-src",
     // 产物用相对路径引用 assets，服务挂在 / 下也能正常加载

@@ -1,0 +1,17 @@
+{
+    // 主进程：main-src/*.ts 编译成 CommonJS，输出到 main/
+    // manifest.json 的 injects.main 指向产物 main/index.js
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "module": "commonjs",
+        "moduleResolution": "node",
+        "lib": ["ES2022"],
+        "types": ["node"],
+        "esModuleInterop": false,
+        "rootDir": "main-src",
+        "outDir": "main",
+        "declaration": false,
+        "sourceMap": false
+    },
+    "include": ["main-src/**/*.ts"]
+}

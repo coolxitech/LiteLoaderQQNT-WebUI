@@ -1,5 +1,5 @@
-<script setup>
-import { config_text, config_loading, busy, loadConfig, saveConfig } from "../store.js";
+<script setup lang="ts">
+import { config_text, config_loading, busy, loadConfig, saveConfig } from "../store";
 </script>
 
 <template>

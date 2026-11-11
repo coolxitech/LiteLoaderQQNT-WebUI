@@ -1,5 +1,5 @@
-<script setup>
-import { status, busy, update_result, version_cards, path_rows, counts, loadStatus, checkUpdate } from "../store.js";
+<script setup lang="ts">
+import { status, busy, update_result, version_cards, path_rows, counts, loadStatus, checkUpdate } from "../store";
 </script>
 
 <template>

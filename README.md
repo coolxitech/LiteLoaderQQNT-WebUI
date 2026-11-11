@@ -2,7 +2,7 @@
 
 用浏览器管理 [LiteLoaderQQNT](https://github.com/LiteLoaderQQNT/LiteLoaderQQNT)：查看版本与路径、启停插件、浏览插件市场、检查加载器更新、编辑配置。
 
-插件在 QQ 主进程里起一个**只监听 `127.0.0.1`** 的 HTTP 服务，前端是用 Vite + Vue 3 单文件组件（SFC）构建的单页界面：源码在 `webui-src/`，构建产物提交在 `webui/`，运行时既不需要 `node_modules` 也不需要构建步骤。
+插件在 QQ 主进程里起一个**只监听 `127.0.0.1`** 的 HTTP 服务，前端是用 Vite + Vue 3 单文件组件（SFC）构建的单页界面。源码全部是 TypeScript：主进程 `main-src/`、设置页入口 `renderer-src/`、前端 `webui-src/`；编译/构建产物分别提交在 `main/`、`renderer/`、`webui/`，运行时既不需要 `node_modules` 也不需要构建步骤。
 
 ## 安装
 
@@ -65,18 +65,26 @@ token 同时会写到 `<数据目录>/webui/token`，方便脚本读取；页面
 ## 目录结构
 
 ```
-manifest.json          插件清单（injects.main / injects.renderer）
-package.json           devDependencies: vue / vite / @vitejs/plugin-vue
-vite.config.mjs        构建配置（root: webui-src，产物输出到 webui/）
-main/index.js          HTTP 服务 + API（CommonJS，跑在 QQ 主进程）
-renderer/index.js      QQ 设置页里的 WebUI 地址行（ESM）
+manifest.json          插件清单（injects.main / injects.renderer，均指向编译产物）
+package.json           devDependencies: vue / vite / @vitejs/plugin-vue / typescript / vue-tsc / @types/node
+tsconfig.base.json     三套 tsconfig 共享的 strict 选项
+tsconfig.main.json     主进程配置（main-src → main，CommonJS）
+tsconfig.renderer.json 渲染进程配置（renderer-src → renderer，ESM）
+tsconfig.webui.json    前端配置（webui-src，只做类型检查，noEmit）
+vite.config.ts         前端构建配置（root: webui-src，产物输出到 webui/）
+main-src/index.ts      HTTP 服务 + API 源码（CommonJS，跑在 QQ 主进程）
+main-src/types.ts      LiteLoader 全局对象、插件市场 API 等运行时类型
+renderer-src/index.ts  QQ 设置页里的 WebUI 地址行源码（ESM）
+renderer-src/types.ts  渲染进程侧的 LiteLoader.api 类型
 webui-src/index.html   页面外壳，挂载点 #app
-webui-src/main.js      createApp(App).mount("#app")
+webui-src/main.ts      createApp(App).mount("#app")
 webui-src/App.vue      顶部导航（hash 路由）+ 四个视图切换 + 全局错误/提示条
-webui-src/views/       Overview.vue / Plugins.vue / Market.vue / Config.vue
-webui-src/api.js       token 握手（?token= → sessionStorage）与 fetch 封装
-webui-src/store.js     跨视图共享状态与数据操作
+webui-src/views/       Overview.vue / Plugins.vue / Market.vue / Config.vue（均 script setup lang="ts"）
+webui-src/api.ts       token 握手（?token= → sessionStorage）与 fetch 封装
+webui-src/store.ts     跨视图共享状态与数据操作
+webui-src/types.ts     /api/* 响应类型与视图数据模型
 webui-src/styles.css   全局变量、重置与公共组件类（按钮/标签/卡片/表单）
+main/ renderer/        编译产物（tsc 输出，随仓库提交，不要手改）
 webui/                 构建产物（index.html + assets/*，随仓库提交，不要手改）
 ```
 
@@ -99,24 +107,30 @@ webui/                 构建产物（index.html + assets/*，随仓库提交，
 
 ## 开发
 
-前端是 Vite + Vue 3 SFC，产物提交在 `webui/`；主进程与设置页入口仍是纯 CommonJS / ESM，不需要编译。
+源码是 TypeScript，分三份 tsconfig：`main-src/`（主进程，CommonJS）、`renderer-src/`（设置页入口，ESM）、`webui-src/`（前端，Vite + Vue SFC）。编译/构建产物随仓库提交，所以装插件的人不需要 `node_modules`，也不需要构建。
 
 ```powershell
 # 安装开发依赖（会生成 node_modules，不要提交）
 npm install
 
-# 构建前端产物到 webui/（emptyOutDir 会先清空旧产物）
+# 类型检查 + 编译主进程/渲染进程 + 打包前端，一条命令跑完
 npm run build
+
+# 也可以分开跑
+npm run type-check      # vue-tsc（webui）+ tsc（main / renderer），只检查不产出
+npm run build:main      # main-src → main/
+npm run build:renderer  # renderer-src → renderer/
+npm run build:webui     # webui-src → webui/
 
 # 本地起 Vite dev server 调界面（此时没有主进程，接口会 404）
 npm run dev
 
-# 语法检查
+# 语法检查编译产物
 node --check main/index.js
 node --check renderer/index.js
 ```
 
-改界面只改 `webui-src/`，改完必须重新 `npm run build` 并把 `webui/` 产物一起提交，否则 QQ 里加载的还是旧界面。`main/index.js` 的静态根固定为 `webui/`，构建产物换了文件名也不用改它。
+改完必须重新 `npm run build`，并把 `main/`、`renderer/`、`webui/` 的产物一起提交，否则 QQ 里加载的还是旧代码。`main-src/index.ts` 的静态根固定为 `webui/`，构建产物换了文件名也不用改它。
 
 ## 许可证
 

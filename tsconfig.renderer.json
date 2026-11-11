@@ -1,0 +1,16 @@
+{
+    // 渲染进程：renderer-src/*.ts 编译成 ESM，输出到 renderer/
+    // manifest.json 的 injects.renderer 指向产物 renderer/index.js
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "module": "esnext",
+        "moduleResolution": "node",
+        "lib": ["ES2022", "DOM"],
+        "types": [],
+        "rootDir": "renderer-src",
+        "outDir": "renderer",
+        "declaration": false,
+        "sourceMap": false
+    },
+    "include": ["renderer-src/**/*.ts"]
+}

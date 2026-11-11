@@ -1,0 +1,14 @@
+{
+    // WebUI 前端：只做类型检查（noEmit），实际打包交给 vite build；.vue 由 vue-tsc 解析
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "module": "esnext",
+        "moduleResolution": "bundler",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "types": ["vite/client"],
+        "jsx": "preserve",
+        "noEmit": true,
+        "resolveJsonModule": true
+    },
+    "include": ["webui-src/**/*.ts", "webui-src/**/*.vue"]
+}

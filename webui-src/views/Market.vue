@@ -1,5 +1,5 @@
-<script setup>
-import { market, market_loading, market_keyword, market_type, filtered_market, loadMarket, installMarket, uninstallMarket, openDetail } from "../store.js";
+<script setup lang="ts">
+import { market, market_loading, market_keyword, market_type, filtered_market, loadMarket, installMarket, uninstallMarket, openDetail } from "../store";
 </script>
 
 <template>
